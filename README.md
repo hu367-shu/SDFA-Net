@@ -49,6 +49,6 @@ The dataset used in this paper is large and not included in this repository.
 Download instructions:
 
 Please download the dataset from the following link:
-[[待补充下载链接]]
+[https://github.com/hu367-shu/SDFA-Net/releases/download/v1.0-data/dataset.zip](https://github.com/hu367-shu/SDFA-Net/releases/download/v1.0-data/dataset.zip)
 
 After downloading, place the dataset files in the data/dataset/ directory.
