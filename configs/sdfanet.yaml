@@ -1,0 +1,128 @@
+# SDFA-Net Configuration
+# Paper: SDFA-Net — Fisheye Image + LiDAR Point Cloud Multimodal Manhole Cover Detection and Disease Diagnosis
+
+model:
+  # Image branch (YOLOv11 backbone)
+  image:
+    backbone: "yolov11n"          # yolov11n / yolov11s / yolov11m
+    pretrained: true
+    out_channels: [128, 256, 512] # multi-scale output channels
+    neck_channels: 256             # FPN neck output channels
+
+  # Point cloud branch (PointPillars)
+  lidar:
+    point_cloud_range: [-25.6, -25.6, -2.0, 25.6, 25.6, 4.0]
+    voxel_size: [0.2, 0.2, 6.0]
+    max_points_per_voxel: 32
+    max_voxels: 16000
+    pillar_channels: 64
+    bev_out_channels: 256
+
+  # SDS-VT: Semi-Dense Depth-Supervised View Transform
+  sds_vt:
+    depth_bins: 64
+    depth_min: 0.5                 # meters
+    depth_max: 30.0                # meters
+    image_size: [384, 640]         # [H, W] after rectification
+    bev_h: 256
+    bev_w: 256
+    x_range: [-25.6, 25.6]        # BEV X range in meters
+    y_range: [-12.8, 38.4]        # BEV Y range in meters
+    fov: 120.0                     # virtual pinhole camera FOV (degrees)
+
+  # FA-Fusion
+  fusion:
+    c_cam: 256                     # camera BEV channels
+    c_lidar: 256                   # lidar BEV channels
+    c_fuse: 256                    # fused output channels
+    lambda_density: 0.7            # physical confidence balance weight
+
+  # Geo-Head
+  geo_head:
+    in_channels: 256
+    num_classes: 5                 # good, sunken, raised, broken, missing
+    gaussian_sigma: 1.5            # heatmap gaussian radius
+
+# Data
+data:
+  dataset_root: "./data/manhole_dataset"
+  num_frames: 3500
+  train_ratio: 0.7
+  val_ratio: 0.1
+  test_ratio: 0.2
+  multi_frame_window: 10          # N for sliding window aggregation
+  pose_std_threshold: 0.05        # translation std threshold for frame rejection
+  agg_voxel_size: 0.05            # voxel downsample after aggregation
+
+  classes:
+    - "good"
+    - "sunken"
+    - "raised"
+    - "broken"
+    - "missing"
+
+  # RANSAC parameters for delta_z computation
+  ransac:
+    r_inner: 0.45                  # inner ring radius (m)
+    r_outer: 1.0                   # outer ring radius (m)
+    cover_radius: 0.35             # manhole cover radius (m)
+    plane_threshold: 0.02          # RANSAC inlier threshold (m)
+    z_threshold: 0.015             # 15mm for good/sunken/raised decision
+
+# Augmentation
+augmentation:
+  mosaic_prob: 0.5
+  mixup_prob: 0.3
+  rotation_degrees: 15.0
+  translation_meters: 1.0
+  scale_range: [0.9, 1.1]
+  color_jitter:
+    brightness: 0.2
+    contrast: 0.2
+    saturation: 0.2
+    hue: 0.1
+
+# Training
+training:
+  epochs: 200
+  batch_size: 8
+  num_workers: 4
+  optimizer: "adamw"
+  learning_rate: 0.0001
+  weight_decay: 0.0001
+  lr_scheduler: "cosine"
+  warmup_epochs: 5
+  warmup_lr: 0.000001
+  grad_clip_norm: 10.0
+  early_stop_patience: 30
+  amp: true                       # automatic mixed precision
+
+# Loss weights
+loss:
+  hm: 1.0                         # heatmap (focal loss)
+  offset: 1.0                     # center offset (smooth L1)
+  size: 1.0                       # size regression (smooth L1)
+  height: 2.0                     # delta_z regression (smooth L1)
+  depth: 0.5                      # semi-dense depth supervision (cross-entropy)
+
+# Task-aligned assigner
+assigner:
+  alpha: 1.0                      # classification weight
+  beta: 6.0                       # IoU weight
+  topk: 10                        # top-K candidates per ground-truth
+  positive_radius: 1              # heatmap positive pixel radius
+
+# Evaluation
+evaluation:
+  iou_threshold: 0.5
+  score_threshold: 0.3
+  nms_iou_threshold: 0.45
+  max_detections: 100
+
+# Logging
+logging:
+  log_dir: "./logs"
+  checkpoint_dir: "./checkpoints"
+  log_interval: 50                # steps
+  eval_interval: 5                # epochs
+  save_top_k: 3
